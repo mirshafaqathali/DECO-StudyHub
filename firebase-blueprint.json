@@ -1,0 +1,417 @@
+{
+  "entities": {
+    "UserStudyState": {
+      "title": "UserStudyState",
+      "description": "Synced per-user DECO syllabus progress, flashcard mastery lists, and theme preference.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["light", "dark"],
+          "maxLength": 10
+        },
+        "completedLessonIds": {
+          "type": "array",
+          "description": "Bounded list of completed DECO lesson IDs (max 100)."
+        },
+        "masteredCardIds": {
+          "type": "array",
+          "description": "Bounded list of mastered flashcard IDs (max 500)."
+        },
+        "reviewCardIds": {
+          "type": "array",
+          "description": "Bounded list of flashcards flagged for review (max 500)."
+        },
+        "studyStreakDays": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "theme",
+        "completedLessonIds",
+        "masteredCardIds",
+        "reviewCardIds",
+        "studyStreakDays",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CustomFlashcard": {
+      "title": "CustomFlashcard",
+      "description": "User-authored or saved flashcard synced across devices.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "subjectId": {
+          "type": "string",
+          "enum": ["unit-1", "unit-2", "unit-3", "unit-4", "unit-5"],
+          "maxLength": 16
+        },
+        "front": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "back": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1500
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "subjectId", "front", "back", "tag", "createdAt", "updatedAt"]
+    },
+    "StudyReminder": {
+      "title": "StudyReminder",
+      "description": "Upcoming exam date or assignment deadline reminder.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "subjectId": {
+          "type": "string",
+          "enum": ["unit-1", "unit-2", "unit-3", "unit-4", "unit-5", "all"],
+          "maxLength": 16
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["exam", "assignment", "quiz", "revision"],
+          "maxLength": 20
+        },
+        "dueDate": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "minLength": 10,
+          "maxLength": 10
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "title", "subjectId", "kind", "dueDate", "notes", "completed", "createdAt", "updatedAt"]
+    },
+    "GroupMembership": {
+      "title": "GroupMembership",
+      "description": "User index of joined collaborative study groups.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "groupId": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_\\-]+$",
+          "minLength": 4,
+          "maxLength": 24
+        },
+        "groupName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": ["owner", "member"],
+          "maxLength": 16
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "groupId", "groupName", "role", "joinedAt", "updatedAt"]
+    },
+    "StudyGroup": {
+      "title": "StudyGroup",
+      "description": "Collaborative DECO study group identified by its invite code.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_\\-]+$",
+          "minLength": 4,
+          "maxLength": 24
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 280
+        },
+        "subjectFocus": {
+          "type": "string",
+          "enum": ["unit-1", "unit-2", "unit-3", "unit-4", "unit-5", "all"],
+          "maxLength": 16
+        },
+        "ownerId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "ownerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "memberIds": {
+          "type": "array",
+          "description": "Bounded list of current member UIDs (max 30)."
+        },
+        "recentPostIds": {
+          "type": "array",
+          "description": "Bounded list of recent study post IDs (max 50)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "code",
+        "name",
+        "description",
+        "subjectFocus",
+        "ownerId",
+        "ownerName",
+        "memberIds",
+        "recentPostIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "GroupMember": {
+      "title": "GroupMember",
+      "description": "Member progress record inside a study group (zero PII).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "groupId": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_\\-]+$",
+          "minLength": 4,
+          "maxLength": 24
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": ["owner", "member"],
+          "maxLength": 16
+        },
+        "completedLessonsCount": {
+          "type": "integer"
+        },
+        "masteredCardsCount": {
+          "type": "integer"
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "groupId",
+        "displayName",
+        "role",
+        "completedLessonsCount",
+        "masteredCardsCount",
+        "joinedAt",
+        "updatedAt"
+      ]
+    },
+    "StudyPost": {
+      "title": "StudyPost",
+      "description": "Shared study note, flashcard tip, or progress milestone inside a study group.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "groupId": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_\\-]+$",
+          "minLength": 4,
+          "maxLength": 24
+        },
+        "authorId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["note", "flashcard", "milestone"],
+          "maxLength": 20
+        },
+        "subjectId": {
+          "type": "string",
+          "enum": ["unit-1", "unit-2", "unit-3", "unit-4", "unit-5", "all"],
+          "maxLength": 16
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1200
+        },
+        "flashcardFront": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "flashcardBack": {
+          "type": "string",
+          "maxLength": 1500
+        },
+        "upvoterIds": {
+          "type": "array",
+          "description": "Bounded list of upvoting member UIDs (max 30)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "groupId",
+        "authorId",
+        "authorName",
+        "kind",
+        "subjectId",
+        "title",
+        "body",
+        "flashcardFront",
+        "flashcardBack",
+        "upvoterIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/studyState/{stateId}": {
+      "schema": { "$ref": "#/entities/UserStudyState" },
+      "description": "Owner-only synced study progress, flashcard mastery lists, and theme preference."
+    },
+    "/users/{userId}/customFlashcards/{cardId}": {
+      "schema": { "$ref": "#/entities/CustomFlashcard" },
+      "description": "Owner-only custom flashcards created or bookmarked by the student."
+    },
+    "/users/{userId}/reminders/{reminderId}": {
+      "schema": { "$ref": "#/entities/StudyReminder" },
+      "description": "Owner-only exam dates and assignment deadline reminders."
+    },
+    "/users/{userId}/groupMemberships/{groupId}": {
+      "schema": { "$ref": "#/entities/GroupMembership" },
+      "description": "Owner-only index of study groups the student has joined."
+    },
+    "/studyGroups/{groupId}": {
+      "schema": { "$ref": "#/entities/StudyGroup" },
+      "description": "Study group metadata and bounded member/recent post indices."
+    },
+    "/studyGroups/{groupId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/GroupMember" },
+      "description": "Study group member progress summary (Master Gate for subcollections)."
+    },
+    "/studyGroups/{groupId}/posts/{postId}": {
+      "schema": { "$ref": "#/entities/StudyPost" },
+      "description": "Shared study notes, flashcard tips, and milestones within a study group."
+    }
+  }
+}

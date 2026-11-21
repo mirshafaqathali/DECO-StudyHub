@@ -1,0 +1,8 @@
+{
+  "name": "DECO StudyHub",
+  "description": "Offline-ready student workspace for Digital Electronics & Computer Organization (U24EC304): structured unit lessons, interactive flashcards, syllabus progress tracking, exam reminders, dark mode, and collaborative study groups.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

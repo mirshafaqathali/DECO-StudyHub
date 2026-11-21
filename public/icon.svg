@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="108" fill="#0F172A"/>
+  <rect x="36" y="36" width="440" height="440" rx="84" stroke="#1E293B" stroke-width="4"/>
+  <!-- Logic Gate & Register Bus Mark -->
+  <path d="M120 184H192" stroke="#38BDF8" stroke-width="22" stroke-linecap="round"/>
+  <path d="M120 328H192" stroke="#38BDF8" stroke-width="22" stroke-linecap="round"/>
+  <path d="M352 256H408" stroke="#0EA5E9" stroke-width="22" stroke-linecap="round"/>
+  <path d="M188 144H256C317.856 144 368 194.144 368 256C368 317.856 317.856 368 256 368H188V144Z" fill="#0284C7" fill-opacity="0.18" stroke="#38BDF8" stroke-width="22" stroke-linejoin="round"/>
+  <circle cx="268" cy="256" r="24" fill="#38BDF8"/>
+</svg>

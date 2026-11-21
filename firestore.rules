@@ -1,0 +1,388 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedEmail() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidGroupCode(code) {
+      return code is string && code.size() >= 4 && code.size() <= 24 && code.matches('^[A-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidSubjectId(subjectId) {
+      return subjectId is string && subjectId.size() <= 16 &&
+        subjectId in ['unit-1', 'unit-2', 'unit-3', 'unit-4', 'unit-5'];
+    }
+
+    function isValidScopeSubjectId(subjectId) {
+      return subjectId is string && subjectId.size() <= 16 &&
+        subjectId in ['unit-1', 'unit-2', 'unit-3', 'unit-4', 'unit-5', 'all'];
+    }
+
+    function isBoundedStringList(arr, maxLen) {
+      return arr is list && arr.size() <= maxLen && (arr.size() == 0 || arr[0] is string);
+    }
+
+    function isGroupMember(groupId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/studyGroups/$(groupId)/members/$(request.auth.uid));
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidUserStudyState(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'theme', 'completedLessonIds',
+          'masteredCardIds', 'reviewCardIds', 'studyStreakDays',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'displayName', 'theme', 'completedLessonIds',
+          'masteredCardIds', 'reviewCardIds', 'studyStreakDays',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+        data.theme is string && data.theme.size() <= 10 && data.theme in ['light', 'dark'] &&
+        isBoundedStringList(data.completedLessonIds, 100) &&
+        isBoundedStringList(data.masteredCardIds, 500) &&
+        isBoundedStringList(data.reviewCardIds, 500) &&
+        data.studyStreakDays is int && data.studyStreakDays >= 0 && data.studyStreakDays <= 3650 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCustomFlashcard(data, userId) {
+      return data.keys().hasAll(['uid', 'subjectId', 'front', 'back', 'tag', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'subjectId', 'front', 'back', 'tag', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
+        isValidSubjectId(data.subjectId) &&
+        data.front is string && data.front.size() >= 1 && data.front.size() <= 500 &&
+        data.back is string && data.back.size() >= 1 && data.back.size() <= 1500 &&
+        data.tag is string && data.tag.size() >= 1 && data.tag.size() <= 60 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidReminder(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'title', 'subjectId', 'kind', 'dueDate',
+          'notes', 'completed', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'title', 'subjectId', 'kind', 'dueDate',
+          'notes', 'completed', 'createdAt', 'updatedAt'
+        ]) &&
+        data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 160 &&
+        isValidScopeSubjectId(data.subjectId) &&
+        data.kind is string && data.kind.size() <= 20 && data.kind in ['exam', 'assignment', 'quiz', 'revision'] &&
+        data.dueDate is string && data.dueDate.size() == 10 && data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.notes is string && data.notes.size() <= 500 &&
+        data.completed is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidGroupMembership(data, userId, groupId) {
+      return data.keys().hasAll(['uid', 'groupId', 'groupName', 'role', 'joinedAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'groupId', 'groupName', 'role', 'joinedAt', 'updatedAt']) &&
+        data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
+        data.groupId is string && data.groupId == groupId && isValidGroupCode(data.groupId) &&
+        data.groupName is string && data.groupName.size() >= 1 && data.groupName.size() <= 80 &&
+        data.role is string && data.role.size() <= 16 && data.role in ['owner', 'member'] &&
+        data.joinedAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidStudyGroup(data, groupId) {
+      return data.keys().hasAll([
+          'code', 'name', 'description', 'subjectFocus',
+          'ownerId', 'ownerName', 'memberIds', 'recentPostIds',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'code', 'name', 'description', 'subjectFocus',
+          'ownerId', 'ownerName', 'memberIds', 'recentPostIds',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.code is string && data.code == groupId && isValidGroupCode(data.code) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
+        data.description is string && data.description.size() <= 280 &&
+        isValidScopeSubjectId(data.subjectFocus) &&
+        data.ownerId is string && isValidId(data.ownerId) &&
+        data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80 &&
+        data.memberIds is list && data.memberIds.size() >= 1 && data.memberIds.size() <= 30 && data.memberIds[0] is string &&
+        isBoundedStringList(data.recentPostIds, 50) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidGroupMember(data, groupId, memberId) {
+      return data.keys().hasAll([
+          'uid', 'groupId', 'displayName', 'role',
+          'completedLessonsCount', 'masteredCardsCount',
+          'joinedAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'groupId', 'displayName', 'role',
+          'completedLessonsCount', 'masteredCardsCount',
+          'joinedAt', 'updatedAt'
+        ]) &&
+        data.uid is string && data.uid == memberId && isValidId(data.uid) &&
+        data.groupId is string && data.groupId == groupId && isValidGroupCode(data.groupId) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+        data.role is string && data.role.size() <= 16 && data.role in ['owner', 'member'] &&
+        data.completedLessonsCount is int && data.completedLessonsCount >= 0 && data.completedLessonsCount <= 100 &&
+        data.masteredCardsCount is int && data.masteredCardsCount >= 0 && data.masteredCardsCount <= 500 &&
+        data.joinedAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidStudyPost(data, groupId, postId) {
+      return data.keys().hasAll([
+          'id', 'groupId', 'authorId', 'authorName', 'kind',
+          'subjectId', 'title', 'body', 'flashcardFront', 'flashcardBack',
+          'upvoterIds', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'groupId', 'authorId', 'authorName', 'kind',
+          'subjectId', 'title', 'body', 'flashcardFront', 'flashcardBack',
+          'upvoterIds', 'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id == postId && isValidId(data.id) &&
+        data.groupId is string && data.groupId == groupId && isValidGroupCode(data.groupId) &&
+        data.authorId is string && isValidId(data.authorId) &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
+        data.kind is string && data.kind.size() <= 20 && data.kind in ['note', 'flashcard', 'milestone'] &&
+        isValidScopeSubjectId(data.subjectId) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+        data.body is string && data.body.size() >= 1 && data.body.size() <= 1200 &&
+        data.flashcardFront is string && data.flashcardFront.size() <= 500 &&
+        data.flashcardBack is string && data.flashcardBack.size() <= 1500 &&
+        isBoundedStringList(data.upvoterIds, 30) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // --- Connection Probe ---
+    match /test/connection {
+      allow get: if isSignedIn();
+      allow list, write: if false;
+    }
+
+    // --- Private Per-User Study Data ---
+    match /users/{userId}/studyState/{stateId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(stateId);
+      allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+      allow create: if isVerifiedEmail() && isOwner(userId) && isValidId(userId) && stateId == 'profile' &&
+        isValidUserStudyState(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedEmail() && isOwner(userId) && isValidId(userId) && stateId == 'profile' &&
+        isValidUserStudyState(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'theme', 'completedLessonIds', 'masteredCardIds',
+          'reviewCardIds', 'studyStreakDays', 'updatedAt'
+        ]);
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(stateId);
+    }
+
+    match /users/{userId}/customFlashcards/{cardId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(cardId);
+      allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+      allow create: if isVerifiedEmail() && isOwner(userId) && isValidId(userId) && isValidId(cardId) &&
+        isValidCustomFlashcard(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedEmail() && isOwner(userId) && isValidId(userId) && isValidId(cardId) &&
+        isValidCustomFlashcard(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['subjectId', 'front', 'back', 'tag', 'updatedAt']);
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(cardId);
+    }
+
+    match /users/{userId}/reminders/{reminderId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(reminderId);
+      allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+      allow create: if isVerifiedEmail() && isOwner(userId) && isValidId(userId) && isValidId(reminderId) &&
+        isValidReminder(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedEmail() && isOwner(userId) && isValidId(userId) && isValidId(reminderId) &&
+        isValidReminder(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'subjectId', 'kind', 'dueDate', 'notes', 'completed', 'updatedAt'
+        ]);
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(reminderId);
+    }
+
+    match /users/{userId}/groupMemberships/{groupId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidGroupCode(groupId);
+      allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+      allow create: if isVerifiedEmail() && isOwner(userId) && isValidId(userId) && isValidGroupCode(groupId) &&
+        isValidGroupMembership(incoming(), userId, groupId) &&
+        incoming().joinedAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/studyGroups/$(groupId)/members/$(userId));
+      allow update: if isVerifiedEmail() && isOwner(userId) && isValidId(userId) && isValidGroupCode(groupId) &&
+        isValidGroupMembership(incoming(), userId, groupId) &&
+        incoming().uid == existing().uid &&
+        incoming().groupId == existing().groupId &&
+        incoming().role == existing().role &&
+        incoming().joinedAt == existing().joinedAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['groupName', 'updatedAt']);
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidGroupCode(groupId);
+    }
+
+    // --- Collaborative Study Groups ---
+    match /studyGroups/{groupId} {
+      allow get: if isSignedIn() && isValidGroupCode(groupId);
+      allow list: if false;
+      allow create: if isVerifiedEmail() && isValidGroupCode(groupId) &&
+        isValidStudyGroup(incoming(), groupId) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().memberIds == [request.auth.uid] &&
+        incoming().recentPostIds == [] &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/studyGroups/$(groupId)/members/$(request.auth.uid));
+      allow update: if isVerifiedEmail() && isValidGroupCode(groupId) &&
+        isValidStudyGroup(incoming(), groupId) &&
+        incoming().code == existing().code &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          // Tier 1: Owner updates group metadata
+          (existing().ownerId == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'subjectFocus', 'updatedAt'])) ||
+          // Tier 2: Joining student adds only their own UID to memberIds
+          (!(request.auth.uid in existing().memberIds) &&
+            incoming().memberIds.hasAll(existing().memberIds) &&
+            request.auth.uid in incoming().memberIds &&
+            incoming().memberIds.size() == existing().memberIds.size() + 1 &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'updatedAt'])) ||
+          // Tier 2: Leaving student removes only their own UID (cannot remove owner)
+          (request.auth.uid in existing().memberIds &&
+            request.auth.uid != existing().ownerId &&
+            !(request.auth.uid in incoming().memberIds) &&
+            existing().memberIds.hasAll(incoming().memberIds) &&
+            incoming().memberIds.size() == existing().memberIds.size() - 1 &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'updatedAt'])) ||
+          // Tier 2: Current member appends new post ID to recentPostIds
+          (isGroupMember(groupId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['recentPostIds', 'updatedAt']))
+        );
+      allow delete: if isVerifiedEmail() && isValidGroupCode(groupId) && existing().ownerId == request.auth.uid;
+
+      match /members/{memberId} {
+        allow get: if isSignedIn() && isValidGroupCode(groupId) && isValidId(memberId) &&
+          (memberId == request.auth.uid || isGroupMember(groupId));
+        allow list: if false;
+        allow create: if isVerifiedEmail() && isValidGroupCode(groupId) && isValidId(memberId) &&
+          memberId == request.auth.uid &&
+          isValidGroupMember(incoming(), groupId, memberId) &&
+          incoming().joinedAt == request.time &&
+          incoming().updatedAt == request.time &&
+          (
+            (incoming().role == 'owner' &&
+              getAfter(/databases/$(database)/documents/studyGroups/$(groupId)).data.ownerId == request.auth.uid) ||
+            (incoming().role == 'member' &&
+              exists(/databases/$(database)/documents/studyGroups/$(groupId)) &&
+              request.auth.uid in getAfter(/databases/$(database)/documents/studyGroups/$(groupId)).data.memberIds)
+          );
+        allow update: if isVerifiedEmail() && isValidGroupCode(groupId) && isValidId(memberId) &&
+          memberId == request.auth.uid &&
+          isGroupMember(groupId) &&
+          isValidGroupMember(incoming(), groupId, memberId) &&
+          incoming().uid == existing().uid &&
+          incoming().groupId == existing().groupId &&
+          incoming().role == existing().role &&
+          incoming().joinedAt == existing().joinedAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'completedLessonsCount', 'masteredCardsCount', 'updatedAt'
+          ]);
+        allow delete: if isVerifiedEmail() && isValidGroupCode(groupId) && isValidId(memberId) &&
+          (memberId == request.auth.uid || get(/databases/$(database)/documents/studyGroups/$(groupId)).data.ownerId == request.auth.uid);
+      }
+
+      match /posts/{postId} {
+        allow get: if isSignedIn() && isValidGroupCode(groupId) && isValidId(postId) && isGroupMember(groupId);
+        allow list: if false;
+        allow create: if isVerifiedEmail() && isValidGroupCode(groupId) && isValidId(postId) &&
+          isGroupMember(groupId) &&
+          isValidStudyPost(incoming(), groupId, postId) &&
+          incoming().authorId == request.auth.uid &&
+          incoming().upvoterIds == [] &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          postId in getAfter(/databases/$(database)/documents/studyGroups/$(groupId)).data.recentPostIds;
+        allow update: if isVerifiedEmail() && isValidGroupCode(groupId) && isValidId(postId) &&
+          isGroupMember(groupId) &&
+          isValidStudyPost(incoming(), groupId, postId) &&
+          incoming().id == existing().id &&
+          incoming().groupId == existing().groupId &&
+          incoming().authorId == existing().authorId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time && (
+            // Tier 1: Author edits post content
+            (existing().authorId == request.auth.uid &&
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'title', 'body', 'flashcardFront', 'flashcardBack', 'subjectId', 'updatedAt'
+              ])) ||
+            // Tier 2: Any member toggles their own upvote
+            (incoming().diff(existing()).affectedKeys().hasOnly(['upvoterIds', 'updatedAt']) && (
+              (!(request.auth.uid in existing().upvoterIds) &&
+                incoming().upvoterIds.hasAll(existing().upvoterIds) &&
+                request.auth.uid in incoming().upvoterIds &&
+                incoming().upvoterIds.size() == existing().upvoterIds.size() + 1) ||
+              (request.auth.uid in existing().upvoterIds &&
+                !(request.auth.uid in incoming().upvoterIds) &&
+                existing().upvoterIds.hasAll(incoming().upvoterIds) &&
+                incoming().upvoterIds.size() == existing().upvoterIds.size() - 1)
+            ))
+          );
+        allow delete: if isVerifiedEmail() && isValidGroupCode(groupId) && isValidId(postId) &&
+          isGroupMember(groupId) &&
+          (existing().authorId == request.auth.uid ||
+            get(/databases/$(database)/documents/studyGroups/$(groupId)).data.ownerId == request.auth.uid);
+      }
+    }
+  }
+}
